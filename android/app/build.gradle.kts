@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.dawasante.dawa_sante" // Replace avec ton nom de package (ex: com.dawa.app)
+    namespace = "com.dawasante.app" // Remplacez par votre package
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -14,8 +14,12 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     defaultConfig {
-        applicationId = "com.dawasante.dawa_sante" // Replace avec ton applicationId
+        applicationId = "com.dawasante.app" // Remplacez par votre applicationId
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -26,12 +30,6 @@ android {
         release {
             signingConfig = signingConfigs.getByName("debug")
         }
-    }
-}
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
