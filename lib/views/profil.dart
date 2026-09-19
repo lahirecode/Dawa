@@ -1,10 +1,12 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../admin/dashboard.dart';
-import 'login.dart';
 import '../services/auth_session.dart';
 import '../widgets/app_card.dart';
 import '../widgets/app_form_field.dart';
+import 'login.dart';
 
 class ProfilPage extends StatefulWidget {
   const ProfilPage({super.key});
@@ -17,10 +19,12 @@ class _ProfilPageState extends State<ProfilPage> {
   static const _blue = Color(0xFF1769F5);
   static const _navy = Color(0xFF17356F);
   static const _muted = Color(0xFF60769A);
+
   String _nom = 'Utilisateur AWA';
   String _telephone = '+243 000 000 000';
   bool _notifications = true;
   bool _modeSombre = false;
+  bool _saving = false;
 
   @override
   void initState() {
@@ -76,10 +80,10 @@ class _ProfilPageState extends State<ProfilPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text(
-                'Mon profil',
+                'Aperçu du profil',
                 style: TextStyle(
                   color: _navy,
-                  fontSize: 23,
+                  fontSize: 21,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -90,20 +94,20 @@ class _ProfilPageState extends State<ProfilPage> {
                   ClipOval(
                     child: Image.asset(
                       'assets/images/entry.png',
-                      width: 142,
-                      height: 142,
+                      width: 100,
+                      height: 100,
                       fit: BoxFit.cover,
                       errorBuilder: (_, error, stackTrace) => const CircleAvatar(
-                        radius: 71,
+                        radius: 50,
                         backgroundColor: Color(0xFFEAF3FF),
-                        child: Icon(Icons.person, color: _blue, size: 60),
+                        child: Icon(Icons.person, color: _blue, size: 50),
                       ),
                     ),
                   ),
                   const SizedBox(width: 16),
                   Expanded(
                     child: Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: 4),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -113,32 +117,32 @@ class _ProfilPageState extends State<ProfilPage> {
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
                               color: _navy,
-                              fontSize: 20,
+                              fontSize: 18,
                               fontWeight: FontWeight.w900,
                             ),
                           ),
-                          const SizedBox(height: 10),
-                          const Row(
+                          const SizedBox(height: 8),
+                          Row(
                             children: [
-                              Icon(Icons.person_outline, color: _blue, size: 19),
-                              SizedBox(width: 8),
+                              const Icon(Icons.person_outline, color: _blue, size: 18),
+                              const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  'Patient AWA',
-                                  style: TextStyle(color: _muted, fontSize: 13),
+                                  AuthSession.role == 'admin' ? 'Administrateur' : 'Patient AWA',
+                                  style: const TextStyle(color: _muted, fontSize: 13),
                                 ),
                               ),
                             ],
                           ),
-                          const SizedBox(height: 7),
+                          const SizedBox(height: 6),
                           Row(
                             children: [
-                              const Icon(Icons.phone_outlined, color: _blue, size: 19),
+                              const Icon(Icons.phone_outlined, color: _blue, size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   _telephone,
-                                  maxLines: 2,
+                                  maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
                                     color: _muted,
@@ -158,8 +162,8 @@ class _ProfilPageState extends State<ProfilPage> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
-                  onPressed: _modifierProfil,
-                  icon: const Icon(Icons.edit_outlined, size: 19),
+                  onPressed: _saving ? null : _modifierProfil,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
                   label: const Text('Modifier'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: _blue,
@@ -182,18 +186,21 @@ class _ProfilPageState extends State<ProfilPage> {
             fontWeight: FontWeight.w800,
           ),
         ),
+        const SizedBox(height: 8),
         _option(
           Icons.receipt_long_outlined,
           'Historique des achats',
           'Voir mes commandes de médicaments',
           _ouvrirHistorique,
         ),
+        const SizedBox(height: 8),
         _option(
           Icons.calendar_month_outlined,
           'Mes rendez-vous',
           'Voir mes consultations médicales',
           () => _message('Aucun rendez-vous enregistré.'),
         ),
+        const SizedBox(height: 8),
         _option(
           Icons.location_on_outlined,
           'Adresses de livraison',
@@ -209,32 +216,38 @@ class _ProfilPageState extends State<ProfilPage> {
             fontWeight: FontWeight.w800,
           ),
         ),
+        const SizedBox(height: 8),
         _option(
           Icons.policy_outlined,
           'Politique de confidentialité',
           'Consulter notre politique',
           _ouvrirPolitique,
         ),
+        const SizedBox(height: 8),
         _option(
           Icons.description_outlined,
           'Conditions d’utilisation',
           'Lire les conditions de service',
           _ouvrirConditions,
         ),
+        const SizedBox(height: 8),
         _option(
           Icons.help_outline,
           'Aide et assistance',
           'Nous sommes disponibles 24/7',
           () => _message('Contactez-nous au +243 000 000 000.'),
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 24),
         if (AuthSession.role == 'admin') ...[
           FilledButton.icon(
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => const DashboardPage()),
             ),
-            style: FilledButton.styleFrom(backgroundColor: _blue),
+            style: FilledButton.styleFrom(
+              backgroundColor: _blue,
+              minimumSize: const Size.fromHeight(48),
+            ),
             icon: const Icon(Icons.dashboard_outlined),
             label: const Text('Ouvrir le dashboard'),
           ),
@@ -243,9 +256,9 @@ class _ProfilPageState extends State<ProfilPage> {
         OutlinedButton.icon(
           onPressed: _seDeconnecter,
           style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
             side: const BorderSide(color: Colors.redAccent),
             foregroundColor: Colors.redAccent,
-            overlayColor: const Color(0xFF7890B1).withValues(alpha: 0.12),
           ),
           icon: const Icon(Icons.logout, color: Colors.redAccent),
           label: const Text(
@@ -269,7 +282,10 @@ class _ProfilPageState extends State<ProfilPage> {
     onTap: onTap,
     contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
     tileColor: Colors.white,
-    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(16),
+      side: const BorderSide(color: Color(0xFFEAEFF8)),
+    ),
     leading: CircleAvatar(
       backgroundColor: const Color(0xFFEAF3FF),
       child: Icon(icon, color: _blue),
@@ -278,13 +294,14 @@ class _ProfilPageState extends State<ProfilPage> {
       title,
       style: const TextStyle(color: _navy, fontWeight: FontWeight.w800),
     ),
-    subtitle: Text(subtitle, style: const TextStyle(color: _muted)),
+    subtitle: Text(subtitle, style: const TextStyle(color: _muted, fontSize: 12)),
     trailing: const Icon(Icons.chevron_right, color: _blue),
   );
 
   Future<void> _modifierProfil() async {
     final nomController = TextEditingController(text: _nom);
     final telephoneController = TextEditingController(text: _telephone);
+
     await showDialog<void>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -293,6 +310,7 @@ class _ProfilPageState extends State<ProfilPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             AppFormField(controller: nomController, label: 'Nom complet'),
+            const SizedBox(height: 10),
             AppFormField(
               controller: telephoneController,
               keyboardType: TextInputType.phone,
@@ -306,23 +324,55 @@ class _ProfilPageState extends State<ProfilPage> {
             child: const Text('Annuler'),
           ),
           FilledButton(
-            onPressed: () {
-              setState(() {
-                if (nomController.text.trim().isNotEmpty) {
-                  _nom = nomController.text.trim();
+            onPressed: () async {
+              final newNom = nomController.text.trim();
+              final newPhone = telephoneController.text.trim();
+
+              if (newNom.isEmpty || newPhone.isEmpty) {
+                _message('Veuillez remplir tous les champs.');
+                return;
+              }
+
+              Navigator.pop(dialogContext);
+              setState(() => _saving = true);
+
+              try {
+                final user = FirebaseAuth.instance.currentUser;
+                if (user != null) {
+                  final updates = {
+                    'nom': newNom,
+                    'telephone': newPhone,
+                  };
+                  await FirebaseFirestore.instance
+                      .collection('users')
+                      .doc(user.uid)
+                      .update(updates);
+                  await FirebaseFirestore.instance
+                      .collection('clients')
+                      .doc(user.uid)
+                      .update(updates);
+                  await user.updateDisplayName(newNom);
                 }
 
-                if (telephoneController.text.trim().isNotEmpty) {
-                  _telephone = telephoneController.text.trim();
-                }
-              });
-              Navigator.pop(dialogContext);
+                if (!mounted) return;
+                setState(() {
+                  _nom = newNom;
+                  _telephone = newPhone;
+                  _saving = false;
+                });
+                _message('Profil mis à jour avec succès.');
+              } catch (_) {
+                if (!mounted) return;
+                setState(() => _saving = false);
+                _message('Erreur lors de la mise à jour du profil.');
+              }
             },
             child: const Text('Enregistrer'),
           ),
         ],
       ),
     );
+
     nomController.dispose();
     telephoneController.dispose();
   }
@@ -332,11 +382,13 @@ class _ProfilPageState extends State<ProfilPage> {
     'Vos commandes de médicaments apparaîtront ici après votre premier achat.',
     Icons.receipt_long_outlined,
   );
+
   void _ouvrirPolitique() => _ouvrirInfo(
     'Politique de confidentialité',
     'AWA protège vos données personnelles. Elles sont utilisées uniquement pour gérer votre compte, vos commandes et vos consultations.',
     Icons.policy_outlined,
   );
+
   void _ouvrirConditions() => _ouvrirInfo(
     'Conditions d’utilisation',
     'Les consultations en ligne sont préliminaires et ne remplacent pas une prise en charge médicale urgente.',
@@ -370,7 +422,7 @@ class _ProfilPageState extends State<ProfilPage> {
                 contenu,
                 style: const TextStyle(
                   color: Colors.grey,
-                  fontSize: 16,
+                  fontSize: 15,
                   height: 1.5,
                 ),
               ),
@@ -462,8 +514,10 @@ class _ProfilPageState extends State<ProfilPage> {
           ),
           FilledButton(
             onPressed: () async {
+              Navigator.pop(dialogContext);
               await AuthSession.close();
-              if (!context.mounted) return;
+              await FirebaseAuth.instance.signOut();
+              if (!mounted) return;
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (_) => const Login()),
@@ -478,7 +532,13 @@ class _ProfilPageState extends State<ProfilPage> {
     );
   }
 
-  void _message(String message) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 }
