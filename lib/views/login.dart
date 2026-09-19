@@ -183,13 +183,18 @@ class _LoginState extends State<Login> {
   Future<void> _loginWithGoogle() async {
     setState(() => _loading = true);
     try {
-      final googleSignIn = GoogleSignIn.instance;
-      await googleSignIn.initialize();
-      final googleUser = await googleSignIn.authenticate();
+      final GoogleSignIn googleSignIn = GoogleSignIn();
+      final googleUser = await googleSignIn.signIn();
 
-      final googleAuth = googleUser.authentication;
+      if (googleUser == null) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+
+      final googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(
         idToken: googleAuth.idToken,
+        accessToken: googleAuth.accessToken,
       );
 
       final userCredential = await FirebaseAuth.instance.signInWithCredential(
@@ -423,7 +428,7 @@ class _SocialButton extends StatelessWidget {
       width: 24,
       height: 24,
       fit: BoxFit.contain,
-      errorBuilder: (_, _, _) => const Icon(Icons.login, size: 24),
+      errorBuilder: (_, __, ___) => const Icon(Icons.login, size: 24),
     ),
     label: Text(label),
     style: OutlinedButton.styleFrom(
