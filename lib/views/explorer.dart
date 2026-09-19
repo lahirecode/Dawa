@@ -33,6 +33,7 @@ class Explorer extends StatefulWidget {
 class _ExplorerState extends State<Explorer> {
   static const _blue = Color(0xFF6075ED);
   final _rechercheController = TextEditingController();
+  
   late final List<Produit> _panier;
   List<Produit> _stock = [];
   String _recherche = '';
@@ -53,6 +54,12 @@ class _ExplorerState extends State<Explorer> {
     _chargerStock();
   }
 
+  @override
+  void dispose() {
+    _rechercheController.dispose();
+    super.dispose();
+  }
+
   Future<void> _chargerStock() async {
     try {
       final snapshot = await FirebaseFirestore.instance
@@ -60,6 +67,7 @@ class _ExplorerState extends State<Explorer> {
           .orderBy('nom')
           .get();
       final produits = snapshot.docs.map(Produit.fromDoc).toList();
+      
       if (!mounted) return;
       setState(() {
         _stock = produits;
@@ -71,24 +79,26 @@ class _ExplorerState extends State<Explorer> {
     }
   }
 
-  @override
-  void dispose() {
-    _rechercheController.dispose();
-    super.dispose();
-  }
-
   List<Produit> get _produitsFiltres => _stock.where((produit) {
     final terme = _recherche.trim().toLowerCase();
     final texteProduit =
         '${produit.nom} ${produit.description} ${produit.details} ${produit.categorie} ${produit.specialite} ${produit.forme}'
             .toLowerCase();
-    return (terme.isEmpty ||
-            produit.nom.toLowerCase().contains(terme) ||
-            texteProduit.contains(terme)) &&
-        (_specialite == null || produit.specialite == _specialite) &&
-        (_forme == null || produit.forme == _forme) &&
-        (_categorie == null || produit.categorie == _categorie) &&
-        (!_uniquementDisponibles || produit.stock > 0);
+            
+    final correspondRecherche = terme.isEmpty ||
+        produit.nom.toLowerCase().contains(terme) ||
+        texteProduit.contains(terme);
+        
+    final correspondSpecialite = _specialite == null || produit.specialite == _specialite;
+    final correspondForme = _forme == null || produit.forme == _forme;
+    final correspondCategorie = _categorie == null || produit.categorie == _categorie;
+    final correspondDisponibilite = !_uniquementDisponibles || produit.stock > 0;
+
+    return correspondRecherche &&
+        correspondSpecialite &&
+        correspondForme &&
+        correspondCategorie &&
+        correspondDisponibilite;
   }).toList();
 
   bool get _filtresActifs =>
@@ -118,33 +128,25 @@ class _ExplorerState extends State<Explorer> {
       );
       return;
     }
-    if (index == 1) {
-      setState(() => _navigationIndex = 0);
-    } else if (index == 2) {
-      setState(() => _navigationIndex = 1);
-    } else if (index == 3) {
-      setState(() => _navigationIndex = 2);
-    } else {
-      setState(() => _navigationIndex = 3);
-    }
+    setState(() => _navigationIndex = index - 1);
   }
 
   Widget _contenu() {
-    if (_navigationIndex == 1) {
-      return Panier(
-        produits: _panier,
-        integre: true,
-        onChanged: _remplacerPanier,
-        onRetourExplorer: () => setState(() => _navigationIndex = 0),
-      );
+    switch (_navigationIndex) {
+      case 1:
+        return Panier(
+          produits: _panier,
+          integre: true,
+          onChanged: _remplacerPanier,
+          onRetourExplorer: () => setState(() => _navigationIndex = 0),
+        );
+      case 2:
+        return const AuthGate(child: MedecinPage());
+      case 3:
+        return const AuthGate(child: ProfilPage());
+      default:
+        return _explorer();
     }
-    if (_navigationIndex == 2) {
-      return const AuthGate(child: MedecinPage());
-    }
-    if (_navigationIndex == 3) {
-      return const AuthGate(child: ProfilPage());
-    }
-    return _explorer();
   }
 
   Widget _explorer() => Column(
@@ -187,7 +189,7 @@ class _ExplorerState extends State<Explorer> {
         ),
       ),
       Padding(
-        padding: const EdgeInsets.fromLTRB(36, 7, 28, 10),
+        padding: const EdgeInsets.fromLTRB(24, 7, 24, 10),
         child: Row(
           children: [
             Expanded(
@@ -198,7 +200,7 @@ class _ExplorerState extends State<Explorer> {
                   hintText: 'Rechercher un médicament...',
                   hintStyle: const TextStyle(
                     color: Color(0xFF8AA0C0),
-                    fontSize: 12,
+                    fontSize: 13,
                   ),
                   prefixIcon: const Icon(
                     Icons.search,
@@ -250,12 +252,13 @@ class _ExplorerState extends State<Explorer> {
   Widget _categoriesBar() {
     final categories = <String>[
       'Tous',
-      ..._stock.map((p) => p.categorie).toSet(),
+      ..._stock.map((p) => p.categorie).where((c) => c.isNotEmpty).toSet(),
     ];
+    
     return SizedBox(
       height: 49,
       child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 5),
         scrollDirection: Axis.horizontal,
         itemCount: categories.length,
         separatorBuilder: (_, _) => const SizedBox(width: 8),
@@ -274,7 +277,7 @@ class _ExplorerState extends State<Explorer> {
             backgroundColor: const Color(0xFFF5F8FD),
             labelStyle: TextStyle(
               color: selected ? Colors.white : const Color(0xFF49658D),
-              fontSize: 11,
+              fontSize: 12,
               fontWeight: FontWeight.w600,
             ),
             side: BorderSide.none,
@@ -304,6 +307,7 @@ class _ExplorerState extends State<Explorer> {
         'Aucun médicament ne correspond à votre recherche.',
       );
     }
+    
     return LayoutBuilder(
       builder: (context, constraints) => GridView.builder(
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 20),
@@ -312,7 +316,7 @@ class _ExplorerState extends State<Explorer> {
           maxCrossAxisExtent: constraints.maxWidth < 420 ? 165 : 190,
           crossAxisSpacing: constraints.maxWidth < 420 ? 8 : 12,
           mainAxisSpacing: 10,
-          childAspectRatio: constraints.maxWidth < 420 ? .58 : .64,
+          childAspectRatio: constraints.maxWidth < 420 ? 0.58 : 0.64,
         ),
         itemBuilder: (_, index) => _carteProduit(_produitsFiltres[index]),
       ),
@@ -323,9 +327,10 @@ class _ExplorerState extends State<Explorer> {
     builder: (context, constraints) {
       final compact = constraints.maxWidth < 125;
       final imageHeight = compact ? 62.0 : 82.0;
-      final titleSize = compact ? 9.0 : 11.0;
-      final detailSize = compact ? 7.0 : 8.0;
+      final titleSize = compact ? 9.5 : 11.5;
+      final detailSize = compact ? 8.0 : 9.0;
       final priceSize = compact ? 11.0 : 14.0;
+      
       return InkWell(
         onTap: () => _ouvrirDetail(produit),
         borderRadius: BorderRadius.circular(14),
@@ -347,18 +352,15 @@ class _ExplorerState extends State<Explorer> {
             children: [
               Expanded(
                 child: Center(
-                  child: GestureDetector(
-                    onTap: () => _ouvrirDetail(produit),
-                    child: Image.asset(
-                      produit.image,
-                      fit: BoxFit.contain,
-                      width: double.infinity,
-                      height: imageHeight,
-                      errorBuilder: (_, _, _) => Icon(
-                        Icons.medication,
-                        size: compact ? 38 : 48,
-                        color: _blue,
-                      ),
+                  child: Image.asset(
+                    produit.image,
+                    fit: BoxFit.contain,
+                    width: double.infinity,
+                    height: imageHeight,
+                    errorBuilder: (_, _, _) => Icon(
+                      Icons.medication,
+                      size: compact ? 38 : 48,
+                      color: _blue,
                     ),
                   ),
                 ),
@@ -368,7 +370,7 @@ class _ExplorerState extends State<Explorer> {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: Color(0xFF17356F),
+                  color: const Color(0xFF17356F),
                   fontSize: titleSize,
                   fontWeight: FontWeight.w800,
                 ),
@@ -409,7 +411,7 @@ class _ExplorerState extends State<Explorer> {
                   Text(
                     '\$${produit.prix.toStringAsFixed(2)}',
                     style: TextStyle(
-                      color: Color(0xFF17356F),
+                      color: const Color(0xFF17356F),
                       fontSize: priceSize,
                       fontWeight: FontWeight.w900,
                     ),
@@ -495,7 +497,9 @@ class _ExplorerState extends State<Explorer> {
         ),
       ),
     );
-    _chargerStock();
+    if (mounted) {
+      _chargerStock();
+    }
   }
 
   Future<void> _ouvrirFiltres() async {
@@ -503,10 +507,26 @@ class _ExplorerState extends State<Explorer> {
     String? forme = _forme;
     String? categorie = _categorie;
     bool disponibles = _uniquementDisponibles;
-    final specialites = _stock.map((p) => p.specialite).toSet().toList()
+
+    final specialites = _stock
+        .map((p) => p.specialite)
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList()
       ..sort();
-    final formes = _stock.map((p) => p.forme).toSet().toList()..sort();
-    final categories = _stock.map((p) => p.categorie).toSet().toList()..sort();
+    final formes = _stock
+        .map((p) => p.forme)
+        .where((f) => f.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+    final categories = _stock
+        .map((p) => p.categorie)
+        .where((c) => c.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -609,7 +629,7 @@ class _ExplorerState extends State<Explorer> {
   ) => Padding(
     padding: const EdgeInsets.only(top: 10),
     child: DropdownButtonFormField<String>(
-      initialValue: selected,
+      value: selected,
       decoration: InputDecoration(
         labelText: label,
         hintText: 'Toutes',
@@ -622,7 +642,13 @@ class _ExplorerState extends State<Explorer> {
     ),
   );
 
-  void _message(String message) =>
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text(message)));
+  void _message(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 }
