@@ -38,10 +38,12 @@ class _SigninState extends State<Signin> {
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   final _db = Dbmanager();
+
   bool _accepted = false;
   bool _loading = false;
+  bool _obscurePassword = true;
+  bool _obscureConfirmPassword = true;
   String _selectedCountryCode = '+243';
-  String? _createdClientId;
 
   @override
   void dispose() {
@@ -54,36 +56,52 @@ class _SigninState extends State<Signin> {
   }
 
   Future<void> _register() async {
+    FocusScope.of(context).unfocus();
     final auth = FirebaseAuth.instance;
+
     if (auth.currentUser != null) {
       _message('Déconnectez-vous avant de créer un nouveau compte.');
       return;
     }
-    if (_nameController.text.trim().isEmpty ||
-        _emailController.text.trim().isEmpty ||
-        _telephoneController.text.trim().isEmpty ||
-        _passwordController.text.isEmpty) {
+
+    final name = _nameController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
+    final rawPhone = _telephoneController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmController.text;
+
+    if (name.isEmpty || email.isEmpty || rawPhone.isEmpty || password.isEmpty) {
       _message('Remplissez tous les champs obligatoires.');
       return;
     }
-    final email = _emailController.text.trim().toLowerCase();
+
     if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(email)) {
       _message('Saisissez une adresse e-mail valide.');
       return;
     }
-    if (_passwordController.text != _confirmController.text) {
+
+    if (password != confirmPassword) {
       _message('Les mots de passe ne correspondent pas.');
       return;
     }
+
+    if (password.length < 6) {
+      _message('Le mot de passe doit contenir au moins 6 caractères.');
+      return;
+    }
+
     if (!_accepted) {
       _message('Acceptez les termes et conditions pour continuer.');
       return;
     }
+
     setState(() => _loading = true);
+
     final telephone = Dbmanager.normalizeTelephone(
-      _telephoneController.text.trim(),
+      rawPhone,
       _selectedCountryCode,
     );
+
     try {
       if (await _db.telephoneExiste(telephone)) {
         if (!mounted) return;
@@ -91,38 +109,40 @@ class _SigninState extends State<Signin> {
         _message('Ce numéro possède déjà un compte.');
         return;
       }
+
       final credential = await auth.createUserWithEmailAndPassword(
         email: email,
-        password: _passwordController.text,
+        password: password,
       );
+
       final uid = credential.user!.uid;
-      await FirebaseFirestore.instance.collection('clients').doc(uid).set({
+      final batch = FirebaseFirestore.instance.batch();
+
+      final clientRef = FirebaseFirestore.instance.collection('clients').doc(uid);
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+
+      final userData = {
         'clientId': uid,
         'uid': uid,
-        'nom': _nameController.text.trim(),
+        'nom': name,
         'telephone': telephone,
         'email': email,
         'role': 'client',
         'date_inscription': FieldValue.serverTimestamp(),
         'photo': null,
-      });
-      await FirebaseFirestore.instance.collection('users').doc(uid).set({
-        'uid': uid,
-        'nom': _nameController.text.trim(),
-        'telephone': telephone,
-        'email': email,
-        'role': 'client',
-        'date_inscription': FieldValue.serverTimestamp(),
-        'photo': null,
-      });
-      await credential.user!.updateDisplayName(_nameController.text.trim());
+      };
+
+      batch.set(clientRef, userData);
+      batch.set(userRef, userData);
+
+      await batch.commit();
+      await credential.user!.updateDisplayName(name);
       await auth.signOut();
+
       if (!mounted) return;
-      setState(() {
-        _createdClientId = uid;
-        _loading = false;
-      });
-      Navigator.pop(context, {'email': email, 'clientId': _createdClientId!});
+      setState(() => _loading = false);
+
+      Navigator.pop(context, {'email': email, 'clientId': uid});
     } on FirebaseAuthException catch (error) {
       if (!mounted) return;
       setState(() => _loading = false);
@@ -142,8 +162,13 @@ class _SigninState extends State<Signin> {
   }
 
   void _message(String message) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
   }
 
   @override
@@ -201,6 +226,7 @@ class _SigninState extends State<Signin> {
             const SizedBox(height: 22),
             TextField(
               controller: _nameController,
+              textCapitalization: TextCapitalization.words,
               decoration: AppTheme.inputDecoration(
                 'Nom complet',
                 prefix: const Icon(Icons.person_outline, color: AppColors.navy),
@@ -217,11 +243,12 @@ class _SigninState extends State<Signin> {
             ),
             const SizedBox(height: 12),
             Row(
+              crossAxisAlignment: CrossAlignment.start,
               children: [
                 SizedBox(
                   width: 132,
                   child: DropdownButtonFormField<String>(
-                    initialValue: _selectedCountryCode,
+                    value: _selectedCountryCode,
                     decoration: AppTheme.inputDecoration(
                       'Pays',
                       prefix: const Icon(Icons.language, color: AppColors.navy),
@@ -231,14 +258,17 @@ class _SigninState extends State<Signin> {
                           (country) => DropdownMenuItem<String>(
                             value: country['code'],
                             child: Text(
-                              country['label'] ?? country['code'] ?? '',
+                              '${country['label']} (${country['code']})',
+                              style: const TextStyle(fontSize: 13),
                             ),
                           ),
                         )
                         .toList(),
-                    onChanged: (value) => setState(() {
-                      _selectedCountryCode = value ?? '+243';
-                    }),
+                    onChanged: (value) {
+                      if (value != null) {
+                        setState(() => _selectedCountryCode = value);
+                      }
+                    },
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -247,7 +277,7 @@ class _SigninState extends State<Signin> {
                     controller: _telephoneController,
                     keyboardType: TextInputType.phone,
                     decoration: AppTheme.inputDecoration(
-                      'Numéro de téléphone',
+                      'Téléphone',
                       prefix: const Icon(
                         Icons.phone_outlined,
                         color: AppColors.navy,
@@ -260,26 +290,39 @@ class _SigninState extends State<Signin> {
             const SizedBox(height: 12),
             TextField(
               controller: _passwordController,
-              obscureText: true,
+              obscureText: _obscurePassword,
               decoration: AppTheme.inputDecoration(
                 'Mot de passe',
                 prefix: const Icon(Icons.lock_outline, color: AppColors.navy),
-                suffix: const Icon(
-                  Icons.visibility_outlined,
-                  color: AppColors.muted,
+                suffix: IconButton(
+                  icon: Icon(
+                    _obscurePassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    color: AppColors.muted,
+                  ),
+                  onPressed: () =>
+                      setState(() => _obscurePassword = !_obscurePassword),
                 ),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: _confirmController,
-              obscureText: true,
+              obscureText: _obscureConfirmPassword,
               decoration: AppTheme.inputDecoration(
                 'Confirmer le mot de passe',
                 prefix: const Icon(Icons.lock_outline, color: AppColors.navy),
-                suffix: const Icon(
-                  Icons.visibility_outlined,
-                  color: AppColors.muted,
+                suffix: IconButton(
+                  icon: Icon(
+                    _obscureConfirmPassword
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                    color: AppColors.muted,
+                  ),
+                  onPressed: () => setState(
+                    () => _obscureConfirmPassword = !_obscureConfirmPassword,
+                  ),
                 ),
               ),
             ),
@@ -295,7 +338,11 @@ class _SigninState extends State<Signin> {
                     width: 2,
                   ),
                   checkColor: Colors.white,
-                  fillColor: const WidgetStatePropertyAll(AppColors.blue),
+                  fillColor: WidgetStateProperty.resolveWith(
+                    (states) => states.contains(WidgetState.selected)
+                        ? AppColors.blue
+                        : Colors.transparent,
+                  ),
                 ),
                 const Expanded(
                   child: Text.rich(
