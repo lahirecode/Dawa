@@ -1,0 +1,112 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function getRole() {
+      let clientRole = exists(/databases/$(database)/documents/clients/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/clients/$(request.auth.uid)).data.role
+        : null;
+      let professionalRole = exists(/databases/$(database)/documents/professionals/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/professionals/$(request.auth.uid)).data.role
+        : null;
+      return clientRole != null ? clientRole : professionalRole;
+    }
+
+    function isAdmin() {
+      return signedIn() && getRole() == 'admin';
+    }
+
+    function isStaff() {
+      return signedIn() && getRole() in ['admin', 'medecin', 'fournisseur'];
+    }
+
+    function isClient() {
+      return signedIn() && getRole() == 'client';
+    }
+
+    match /clients/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isStaff());
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update, delete: if signedIn() && (isAdmin() || request.auth.uid == userId);
+    }
+
+    match /professionals/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isAdmin() || isStaff());
+      allow create: if signedIn() && isAdmin();
+      allow update, delete: if signedIn() && (isAdmin() || request.auth.uid == userId);
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn() && (request.auth.uid == userId || isStaff());
+      allow create: if signedIn() && request.auth.uid == userId;
+      allow update, delete: if signedIn() && (isAdmin() || request.auth.uid == userId);
+    }
+
+    match /products/{productId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && (isAdmin() || getRole() == 'fournisseur');
+      allow update, delete: if signedIn() && (isAdmin() || getRole() == 'fournisseur');
+    }
+
+    match /commandes/{commandeId} {
+      allow create: if signedIn();
+      allow read: if signedIn() && (resource.data.clientId == request.auth.uid || isStaff());
+      allow update, delete: if signedIn() && (isAdmin() || resource.data.clientId == request.auth.uid);
+    }
+
+    match /ordonnances/{ordonnanceId} {
+      allow read: if isStaff();
+      allow create, update, delete: if signedIn() && (isAdmin() || getRole() == 'medecin');
+    }
+
+    match /pharmacies/{pharmaId} {
+      allow read: if signedIn();
+      allow create: if signedIn() && isStaff();
+      allow update, delete: if signedIn() && (isAdmin() || resource.data.ownerId == request.auth.uid);
+    }
+
+    match /stock/{productId} {
+      allow read: if signedIn();
+      allow create, update, delete: if signedIn() && (isAdmin() || getRole() == 'fournisseur');
+    }
+
+    match /discussions/{discussionId} {
+      allow create: if signedIn();
+      allow read: if signedIn() && (
+        resource.data.clientId == request.auth.uid ||
+        resource.data.medecinId == request.auth.uid ||
+        isAdmin()
+      );
+      allow update, delete: if signedIn() && (
+        isAdmin() ||
+        resource.data.clientId == request.auth.uid ||
+        resource.data.medecinId == request.auth.uid
+      );
+    }
+
+    match /messages/{messageId} {
+      allow create: if signedIn();
+      allow read: if signedIn() && (
+        resource.data.senderId == request.auth.uid ||
+        resource.data.receiverId == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if signedIn() && (
+        isAdmin() || resource.data.senderId == request.auth.uid
+      );
+    }
+
+    match /counters/{counterId} {
+      allow read: if signedIn();
+      allow write: if signedIn() && isAdmin();
+    }
+
+    match /{document=**} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}

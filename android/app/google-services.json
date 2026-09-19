@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "799003895018",
+    "project_id": "dawa-sante",
+    "storage_bucket": "dawa-sante.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:799003895018:android:f2c12c15b69f2063552393",
+        "android_client_info": {
+          "package_name": "com.dawasante.dawa"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCRE0gF-4TASBYFsz8g9sEtSCTO37IHCz4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
